@@ -68,6 +68,7 @@
             const params = new URLSearchParams(search);
             return {
                 token: params.get('token'),
+                code: params.get('code'), // PKCE authorization code
                 type: params.get('type'),
                 redirect_to: params.get('redirect_to')
             };
@@ -96,6 +97,22 @@
                 '<a href="#" onclick="window.close()" class="button">Close</a>';
         }
 
+        function redirectToAppWithCode(code) {
+            const appUrl = `dropcard://reset-password?code=${code}`;
+            console.log('Redirecting to app with code:', appUrl);
+            
+            // Try to redirect to the app
+            window.location.href = appUrl;
+            
+            // Show fallback message after a delay
+            setTimeout(() => {
+                document.getElementById('status').innerHTML = 
+                    '<div class="success">✓ Reset code verified!</div>' +
+                    '<p>Please return to the DropCard app to set your new password.</p>' +
+                    '<p><small>If the app didn\'t open automatically, please open it manually.</small></p>';
+            }, 1000);
+        }
+
         // Main logic
         try {
             const hashParams = getHashParams();
@@ -112,12 +129,21 @@
                 '<p><small>Hash: ' + window.location.hash + '</small></p>' +
                 '<p><small>Query: ' + window.location.search + '</small></p>' +
                 '<p><small>Hash Access Token: ' + (hashParams.access_token ? 'Found' : 'Not found') + '</small></p>' +
+                '<p><small>Query PKCE Code: ' + (queryParams.code ? 'Found' : 'Not found') + '</small></p>' +
                 '<p><small>Query PKCE Token: ' + (queryParams.token ? 'Found' : 'Not found') + '</small></p>';
 
             setTimeout(() => {
                 if (hashParams.access_token && hashParams.refresh_token) {
                     // We have direct tokens from hash, redirect to app
                     redirectToApp(hashParams.access_token, hashParams.refresh_token);
+                } else if (queryParams.code) {
+                    // We have a PKCE authorization code, redirect to app with the code
+                    document.getElementById('status').innerHTML = 
+                        '<div class="loading">Processing authorization code...</div>' +
+                        '<p>Redirecting to app...</p>';
+                    
+                    // Redirect to app with the code so it can handle the token exchange
+                    redirectToAppWithCode(queryParams.code);
                 } else if (queryParams.token && queryParams.type === 'recovery') {
                     // We have a PKCE token, need to exchange it
                     document.getElementById('status').innerHTML = 
