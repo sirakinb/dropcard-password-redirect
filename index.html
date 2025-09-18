@@ -63,6 +63,16 @@
             };
         }
 
+        function getQueryParams() {
+            const search = window.location.search.substring(1);
+            const params = new URLSearchParams(search);
+            return {
+                token: params.get('token'),
+                type: params.get('type'),
+                redirect_to: params.get('redirect_to')
+            };
+        }
+
         function redirectToApp(accessToken, refreshToken) {
             const appUrl = `dropcard://reset-password?access_token=${accessToken}&refresh_token=${refreshToken}`;
             console.log('Redirecting to:', appUrl);
@@ -88,16 +98,46 @@
 
         // Main logic
         try {
-            const params = getHashParams();
-            console.log('URL params:', params);
+            const hashParams = getHashParams();
+            const queryParams = getQueryParams();
+            
+            console.log('Hash params:', hashParams);
+            console.log('Query params:', queryParams);
+            console.log('Full URL:', window.location.href);
 
-            if (params.access_token && params.refresh_token) {
-                // We have the tokens, redirect to app
-                redirectToApp(params.access_token, params.refresh_token);
-            } else {
-                // No tokens found
-                showError('Invalid or expired reset link. Please request a new password reset.');
-            }
+            // Show debug info on page for troubleshooting
+            document.getElementById('status').innerHTML = 
+                '<div class="loading">Debug Info:</div>' +
+                '<p><small>URL: ' + window.location.href + '</small></p>' +
+                '<p><small>Hash: ' + window.location.hash + '</small></p>' +
+                '<p><small>Query: ' + window.location.search + '</small></p>' +
+                '<p><small>Hash Access Token: ' + (hashParams.access_token ? 'Found' : 'Not found') + '</small></p>' +
+                '<p><small>Query PKCE Token: ' + (queryParams.token ? 'Found' : 'Not found') + '</small></p>';
+
+            setTimeout(() => {
+                if (hashParams.access_token && hashParams.refresh_token) {
+                    // We have direct tokens from hash, redirect to app
+                    redirectToApp(hashParams.access_token, hashParams.refresh_token);
+                } else if (queryParams.token && queryParams.type === 'recovery') {
+                    // We have a PKCE token, need to exchange it
+                    document.getElementById('status').innerHTML = 
+                        '<div class="loading">Exchanging token...</div>' +
+                        '<p>Please wait while we process your reset request.</p>';
+                    
+                    // Wait for Supabase to redirect with the actual tokens
+                    // This should happen automatically, but if it doesn't, show instructions
+                    setTimeout(() => {
+                        document.getElementById('status').innerHTML = 
+                            '<div class="success">✓ Reset link verified!</div>' +
+                            '<p>Please return to the DropCard app to set your new password.</p>' +
+                            '<p><small>If the app didn\'t open automatically, please open it manually and try the forgot password flow again.</small></p>';
+                    }, 5000);
+                } else {
+                    // No valid tokens found
+                    showError('Invalid or expired reset link. Please request a new password reset.');
+                }
+            }, 3000); // Wait 3 seconds so you can see the debug info
+
         } catch (error) {
             console.error('Error processing reset:', error);
             showError('Something went wrong. Please try requesting a new password reset.');
